@@ -1,7 +1,9 @@
 package es.malvarez.http_tunnel;
 
 /**
- * Http protocols.
+ * http_tunnel
+ *
+ * @author malvarez
  */
 public enum Protocol {
 
@@ -18,4 +20,4 @@ public enum Protocol {
         }
         return result;
     }
-    }
+}

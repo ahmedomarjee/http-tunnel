@@ -1,7 +1,9 @@
 package es.malvarez.http_tunnel;
 
 /**
- * Type of a header.
+ * http_tunnel
+ *
+ * @author malvarez
  */
 public enum HeaderType {
 

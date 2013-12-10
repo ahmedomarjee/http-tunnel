@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for the tunnel servlet.
  */
-public class TunnelServletTests {
+public class TunnelServletTest {
 
 
     @Test

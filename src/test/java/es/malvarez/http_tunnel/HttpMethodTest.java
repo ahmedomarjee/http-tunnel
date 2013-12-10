@@ -10,16 +10,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for the {@link es.malvarez.http_tunnel.Methods} enumeration
+ * Tests for the {@link Method} enumeration
  */
-public class HttpMethodTests {
+public class HttpMethodTest {
 
     @Test
     public void testValidMethod() {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getMethod()).thenReturn("GET");
 
-        assertThat(Methods.forRequest(request), equalTo(Methods.GET));
+        assertThat(Method.forRequest(request), equalTo(Method.GET));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -27,6 +27,6 @@ public class HttpMethodTests {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getMethod()).thenReturn("INVALID");
 
-        Methods.forRequest(request);
+        Method.forRequest(request);
     }
 }

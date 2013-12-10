@@ -2,8 +2,8 @@ package es.malvarez.http_tunnel;
 
 import es.malvarez.http_tunnel.util.CaseInsensitiveMap;
 
-import java.util.HashMap;
-import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import java.util.*;
 
 /**
  * HTTP Header data.
@@ -298,7 +298,15 @@ public enum Header {
     /**
      * Last resort for non specific headers.
      */
-    DEFAULT(null);
+    UNKNOWN(null);
+
+    private static final Map<String, Header> VALUES = new CaseInsensitiveMap<Header>(new HashMap<String, Header>(values().length));
+
+    static {
+        for (Header header : values()) {
+            VALUES.put(header.name, header);
+        }
+    }
 
     private final String name;
     private final HeaderType type;
@@ -316,29 +324,40 @@ public enum Header {
         return name;
     }
 
-    public String getName(String defaultValue) {
-        return name == null ? defaultValue : name;
-    }
-
     public HeaderType getType() {
         return type;
     }
 
-    private static final Map<String, Header> VALUES = new CaseInsensitiveMap<Header>(new HashMap<String, Header>(values().length));
-
-    static {
-        for (Header header : values()) {
-            VALUES.put(header.name, header);
-        }
+    public static Header forName(String name) {
+        Header header = VALUES.get(name);
+        return header == null ? Header.UNKNOWN : header;
     }
 
-    /**
-     * Gets the specific header.
-     *
-     * @param name name of the header.
-     * @return result.
-     */
-    public static Header forName(String name) {
-        return VALUES.get(name);
+    public static Map<String, List<String>> filter(Map<String, List<String>> headers, HeaderType... type) {
+        EnumSet<HeaderType> typesToInclude = EnumSet.copyOf(Arrays.asList(type));
+        Map<String, List<String>> result = new HashMap<String, List<String>>(headers.size());
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            if (typesToInclude.contains(forName(entry.getKey()).getType())) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    public static String toString(List<String> headerValue) {
+        if (headerValue == null || headerValue.isEmpty()) {
+            return "";
+        }
+        if (headerValue.size() == 1) {
+            return headerValue.get(0);
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String value : headerValue) {
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(value);
+        }
+        return builder.toString();
     }
 }

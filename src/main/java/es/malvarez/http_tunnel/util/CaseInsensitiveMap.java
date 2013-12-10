@@ -5,8 +5,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Case insensitive map
+ * http_tunnel
+ *
+ * @author malvarez
  */
+
 public class CaseInsensitiveMap<V> implements Map<String, V> {
 
     private final Map<String, V> delegated;
@@ -15,12 +18,10 @@ public class CaseInsensitiveMap<V> implements Map<String, V> {
         this.delegated = delegated;
     }
 
-    @Override
     public boolean containsKey(Object key) {
         return delegated.containsKey(toLowerCase(key));
     }
 
-    @Override
     public V get(Object key) {
         return delegated.get(toLowerCase(key));
     }
@@ -35,52 +36,42 @@ public class CaseInsensitiveMap<V> implements Map<String, V> {
         }
     }
 
-    @Override
     public V remove(Object key) {
         return delegated.remove(key);
     }
 
-    @Override
     public void clear() {
         delegated.clear();
     }
 
-    @Override
     public boolean containsValue(Object value) {
         return delegated.containsValue(value);
     }
 
-    @Override
     public Set<Entry<String, V>> entrySet() {
         return delegated.entrySet();
     }
 
-    @Override
     public boolean equals(Object o) {
         return delegated.equals(o);
     }
 
-    @Override
     public int hashCode() {
         return delegated.hashCode();
     }
 
-    @Override
     public boolean isEmpty() {
         return delegated.isEmpty();
     }
 
-    @Override
     public Set<String> keySet() {
         return delegated.keySet();
     }
 
-    @Override
     public int size() {
         return delegated.size();
     }
 
-    @Override
     public Collection<V> values() {
         return delegated.values();
     }

@@ -4,10 +4,11 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 
 /**
- * Http methods
+ * http_tunnel
+ *
+ * @author malvarez
  */
-public enum Methods {
-
+public enum Method {
 
     DELETE("DELETE"),
     HEAD("HEAD"),
@@ -17,17 +18,9 @@ public enum Methods {
     PUT("PUT"),
     TRACE("TRACE");
 
-    /**
-     * Name of the method.
-     */
     private final String name;
 
-    /**
-     * Constructor.
-     *
-     * @param name name of the method.
-     */
-    private Methods(String name) {
+    private Method(String name) {
         this.name = name;
     }
 
@@ -35,15 +28,9 @@ public enum Methods {
         return name;
     }
 
-    /**
-     * Gets the method of the request.
-     *
-     * @param request request.
-     * @return method.
-     */
-    public static Methods forRequest(HttpServletRequest request) {
-        Methods result = null;
-        for (Methods method : values()) {
+    public static Method forRequest(HttpServletRequest request) {
+        Method result = null;
+        for (Method method : values()) {
             if (method.name.equals(request.getMethod().toUpperCase())) {
                 result = method;
                 break;
