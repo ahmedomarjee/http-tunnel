@@ -52,12 +52,15 @@ public class TunnelServlet extends HttpServlet {
 
     private URL destination;
 
+    private Map<String, List<String>> defaultHeaders;
+
 
     @Override
     public final void init(ServletConfig config) throws ServletException {
         super.init(config);
         this.tunnelFactory = buildTransportFactory(config);
         this.destination = buildTunnelDestination(config);
+        this.defaultHeaders = buildDefaultHeaders(config);
         this.internalInit(config);
     }
 
@@ -135,6 +138,20 @@ public class TunnelServlet extends HttpServlet {
         }
     }
 
+
+    /**
+     * Builds the default header list.
+     */
+    protected Map<String, List<String>> buildDefaultHeaders(ServletConfig config) throws ServletException {
+        Map<String, List<String>> defaultHeaders = new HashMap<String, List<String>>(Header.values().length);
+        for (Header header : Header.values()) {
+            if (config.getInitParameter(header.getName()) != null) {
+                defaultHeaders.put(header.getName(), Arrays.asList(config.getInitParameter(header.getName())));
+            }
+        }
+        return defaultHeaders;
+    }
+
     /**
      * Tries to rewrite the URL
      *
@@ -174,6 +191,13 @@ public class TunnelServlet extends HttpServlet {
             );
         }
         builder.headers(headers);
+        List<String> forwardedFor = headers.get(Header.X_FORWARDED_FOR.getName());
+        if (forwardedFor == null) {
+            forwardedFor = new LinkedList<String>();
+        }
+        forwardedFor.add(request.getRemoteAddr());
+        headers.put(Header.X_FORWARDED_FOR.getName(), forwardedFor);
+
         Map<String, String> cookies = new HashMap<String, String>(request.getCookies().length);
         for (Cookie cookie : request.getCookies()) {
             cookies.put(cookie.getName(), cookie.getValue());
@@ -189,6 +213,7 @@ public class TunnelServlet extends HttpServlet {
 
     protected Map<String, List<String>> parseHeaders(HttpServletRequest request) {
         Map<String, List<String>> headers = new HashMap<String, List<String>>(Header.values().length);
+        headers.putAll(defaultHeaders);
         for (Enumeration headerNames = request.getHeaderNames(); headerNames.hasMoreElements(); ) {
             String headerName = (String) headerNames.nextElement();
             Header header = Header.forName(headerName);

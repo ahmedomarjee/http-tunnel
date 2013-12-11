@@ -296,6 +296,11 @@ public enum Header {
     X_FORWARDED_FOR("X-Forwarded-For"),
 
     /**
+     * Header for the forwarded context.
+     */
+    X_FORWARDED_CONTEXT("X-Forwarded-Context"),
+
+    /**
      * Last resort for non specific headers.
      */
     UNKNOWN(null);
