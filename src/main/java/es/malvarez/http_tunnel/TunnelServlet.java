@@ -25,7 +25,7 @@ import java.util.logging.Logger;
  */
 public class TunnelServlet extends HttpServlet {
 
-
+    protected static final String URL_SEPARATOR = "/";
     protected static final String DESTINATION_PARAM = "destination";
     protected static final BitSet ASCII_QUERY_CHARS;
 
@@ -159,9 +159,10 @@ public class TunnelServlet extends HttpServlet {
      */
     protected URL reWriteURL(HttpServletRequest request) throws IOException {
         StringBuilder uri = new StringBuilder(500);
-        uri.append(destination.toExternalForm());
+        uri.append(destination);
         if (request.getPathInfo() != null) {
-            uri.append(encodeUriQuery(request.getPathInfo()));
+            String pathInfo = request.getPathInfo();
+            uri.append(encodeUriQuery(pathInfo.substring(pathInfo.startsWith(URL_SEPARATOR) ? 1 : 0)));
         }
         String queryString = request.getQueryString();
         if (queryString != null && queryString.length() > 0) {
@@ -198,11 +199,14 @@ public class TunnelServlet extends HttpServlet {
         forwardedFor.add(request.getRemoteAddr());
         headers.put(Header.X_FORWARDED_FOR.getName(), forwardedFor);
 
-        Map<String, String> cookies = new HashMap<String, String>(request.getCookies().length);
-        for (Cookie cookie : request.getCookies()) {
-            cookies.put(cookie.getName(), cookie.getValue());
+        if(request.getCookies() != null) {
+            Map<String, String> cookies = new HashMap<String, String>(request.getCookies().length);
+            for (Cookie cookie : request.getCookies()) {
+                cookies.put(cookie.getName(), cookie.getValue());
+            }
+            builder.cookies(cookies);
         }
-        builder.cookies(cookies);
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream(
                 request.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : request.getContentLength()
         );
