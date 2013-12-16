@@ -12,5 +12,5 @@ public interface TunnelResponse {
     /**
      * Flushes the response.
      */
-    Response get() throws IOException;
+    void parse(Response response) throws IOException;
 }

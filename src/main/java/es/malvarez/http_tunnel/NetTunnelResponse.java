@@ -2,7 +2,6 @@ package es.malvarez.http_tunnel;
 
 import es.malvarez.http_tunnel.util.IOUtils;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -22,19 +21,21 @@ public class NetTunnelResponse implements TunnelResponse {
         this.connection = connection;
     }
 
-    public Response get() throws IOException {
+    public void parse(Response response) throws IOException {
         this.connection.connect();
         try {
-            Response.Builder builder = Response.builder();
-            builder.statusCode(connection.getResponseCode());
-            builder.statusMessage(connection.getResponseMessage());
-            builder.headers(connection.getHeaderFields());
+            response.setStatusCode(connection.getResponseCode());
+            response.setStatusMessage(connection.getResponseMessage());
+            for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
+                if (entry.getKey() != null) {
+                    response.addHeader(entry.getKey(), entry.getValue());
+                }
+            }
             ByteArrayOutputStream baos = new ByteArrayOutputStream(
                     connection.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : connection.getContentLength()
             );
             IOUtils.copy(connection.getInputStream(), baos);
-            builder.data(baos.toByteArray());
-            return builder.build();
+            response.setData(baos.toByteArray());
         } finally {
             connection.disconnect();
         }

@@ -3,7 +3,7 @@ package es.malvarez.http_tunnel;
 
 import es.malvarez.http_tunnel.util.IOUtils;
 
-import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.Cookie;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -27,12 +27,16 @@ public class NetTunnelRequest implements TunnelRequest {
         HttpURLConnection connection = getConnection(destination);
         connection.setRequestMethod(data.getMethod());
         connection.setDoInput(true);
-        connection.setInstanceFollowRedirects(true);
+        connection.setInstanceFollowRedirects(false);
         for (Map.Entry<String, List<String>> headerEntry : data.getHeaders().entrySet()) {
             connection.setRequestProperty(headerEntry.getKey(), Header.toString(headerEntry.getValue()));
         }
-        for (Map.Entry<String, String> cookieEntry : data.getCookies().entrySet()) {
-            connection.setRequestProperty("Cookie", String.format("%s=%s", cookieEntry.getKey(), cookieEntry.getValue()));
+        List<String> cookies = new LinkedList<String>();
+        for (Cookie cookie : data.getCookies().values()) {
+            cookies.add(String.format("%s=%s", cookie.getName(), cookie.getValue()));
+        }
+        if (!cookies.isEmpty()) {
+            connection.setRequestProperty("Cookie", Header.toString(cookies));
         }
         if (data.getHeaders().get(Header.CONTENT_LENGTH.getName()) != null || data.getHeaders().get(Header.TRANSFER_ENCODING.getName()) != null) {
             setOutputData(data.getData(), connection);

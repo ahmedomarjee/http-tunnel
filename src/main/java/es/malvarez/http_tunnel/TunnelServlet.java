@@ -3,6 +3,7 @@ package es.malvarez.http_tunnel;
 import es.malvarez.http_tunnel.util.IOUtils;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
@@ -15,8 +16,6 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * http_tunnel
@@ -28,6 +27,8 @@ public class TunnelServlet extends HttpServlet {
     protected static final String URL_SEPARATOR = "/";
     protected static final String DESTINATION_PARAM = "destination";
     protected static final BitSet ASCII_QUERY_CHARS;
+    protected static final String SET_COOKIE_HEADER = "Set-Cookie";
+    protected static final String FORWARDED_COOKIE_PREFIX = "X-Forwarded-Cookie-";
 
     static {
         char[] c_unreserved = "_-!.~'()*".toCharArray();
@@ -45,19 +46,18 @@ public class TunnelServlet extends HttpServlet {
         ASCII_QUERY_CHARS.set((int) '%');
     }
 
-    public static final Logger log = Logger.getLogger(TunnelServlet.class.getName());
+    protected ServletContext servletContext;
 
+    protected TunnelFactory tunnelFactory;
 
-    private TunnelFactory tunnelFactory;
+    protected URL destination;
 
-    private URL destination;
-
-    private Map<String, List<String>> defaultHeaders;
-
+    protected Map<String, List<String>> defaultHeaders;
 
     @Override
     public final void init(ServletConfig config) throws ServletException {
         super.init(config);
+        this.servletContext = config.getServletContext();
         this.tunnelFactory = buildTransportFactory(config);
         this.destination = buildTunnelDestination(config);
         this.defaultHeaders = buildDefaultHeaders(config);
@@ -68,15 +68,18 @@ public class TunnelServlet extends HttpServlet {
     protected void service(HttpServletRequest servletRequest, HttpServletResponse servletResponse) throws ServletException, IOException {
         try {
             Request request = parseRequest(wrapRequest(servletRequest));
-            service(request, reWriteURL(servletRequest), wrapResponse(servletResponse));
+            Response response = new Response();
+            service(reWriteURL(servletRequest), request, response, wrapResponse(servletResponse));
         } catch (Throwable e) {
-            log.log(Level.SEVERE, "Error tunneling response", e);
+            servletContext.log("Error tunneling response", e);
             servletResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Internal server error tunneling the request");
         }
     }
 
-    protected void service(Request request, URL url, HttpServletResponse servletResponse) throws IOException {
-        Response response = this.tunnelFactory.buildRequest().execute(request, url).get();
+    protected void service(URL url, Request request, Response response, HttpServletResponse servletResponse) throws IOException {
+        filterRequestCustomCookies(request);
+        this.tunnelFactory.buildRequest().execute(request, url).parse(response);
+        filterResponseCustomCookies(request, response);
         if (response.getStatusCode() >= HttpServletResponse.SC_MULTIPLE_CHOICES && response.getStatusCode() < HttpServletResponse.SC_NOT_MODIFIED) {
             handleRedirect(request, response, servletResponse);
         } else {
@@ -85,13 +88,18 @@ public class TunnelServlet extends HttpServlet {
     }
 
     protected void handleRedirect(Request request, Response response, HttpServletResponse servletResponse) throws IOException {
-        List<String> locations = request.getHeaders().get(Header.LOCATION.getName());
+        List<String> locations = response.getHeaders().get(Header.LOCATION.getName());
         if (locations == null || locations.isEmpty()) {
             throw new IllegalArgumentException(String.format("Response code %s without Location header", response.getStatusCode()));
         }
         String location = locations.get(0);
         if (location.startsWith(destination.toExternalForm())) {
-            service(request, new URL(location), servletResponse);
+            // Mutate the request to a GET after the POST
+            request.setMethod(Method.GET.getName());
+            request.setData(null);
+            request.removeHeader(Header.CONTENT_LENGTH.getName());
+            request.removeHeader(Header.TRANSFER_ENCODING.getName());
+            service(new URL(location), request, response, servletResponse);
         } else {
             servletResponse.sendRedirect(location);
         }
@@ -99,14 +107,45 @@ public class TunnelServlet extends HttpServlet {
 
     @SuppressWarnings("deprecation")
     protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
+        response.addHeader(Header.CONTENT_LENGTH.getName(), Arrays.asList(Integer.toString(response.getData().length)));
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
-            servletResponse.addHeader(headerEntry.getKey(), Header.toString(headerEntry.getValue()));
+            Header header = Header.forName(headerEntry.getKey());
+            if(header != Header.LOCATION) {
+                servletResponse.addHeader(headerEntry.getKey(), Header.toString(headerEntry.getValue()));
+            }
         }
-        for (Map.Entry<String, String> cookieEntry : response.getCookies().entrySet()) {
-            servletResponse.addCookie(new Cookie(cookieEntry.getKey(), cookieEntry.getValue()));
+        for (Cookie cookieEntry : response.getCookies().values()) {
+            servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
         }
         IOUtils.copy(new ByteArrayInputStream(response.getData()), servletResponse.getOutputStream());
+    }
+
+    protected void filterRequestCustomCookies(Request request) throws IOException {
+        List<Cookie> customCookie = new LinkedList<Cookie>();
+        for (Cookie cookie : request.getCookies().values()) {
+            if (cookie.getName().startsWith(FORWARDED_COOKIE_PREFIX)) {
+                customCookie.add(cookie);
+            }
+        }
+        for (Cookie cookie : customCookie) {
+            request.removeCookie(cookie.getName());
+            Cookie newCookie = new Cookie(cookie.getName().replace(FORWARDED_COOKIE_PREFIX, ""), cookie.getValue());
+            request.addCookie(newCookie);
+        }
+    }
+
+    protected void filterResponseCustomCookies(Request request, Response response) throws IOException {
+        List<String> cookies = response.removeHeader(SET_COOKIE_HEADER);
+        if (cookies != null) {
+            for (String cookieValue : cookies) {
+                Cookie requestCookie = parseCookie(cookieValue);
+                request.addCookie(requestCookie);
+
+                Cookie responseCookie = new Cookie(String.format("%s%s", FORWARDED_COOKIE_PREFIX, requestCookie.getName()), requestCookie.getValue());
+                response.addCookie(responseCookie);
+            }
+        }
     }
 
     /**
@@ -178,10 +217,11 @@ public class TunnelServlet extends HttpServlet {
         return new URL(uri.toString());
     }
 
-    protected Request parseRequest(HttpServletRequest request) throws IOException, URISyntaxException {
-        Request.Builder builder = Request.builder();
-        builder.method(request.getMethod());
-        Map<String, List<String>> headers = Header.filter(parseHeaders(request), HeaderType.END_TO_END);
+    protected Request parseRequest(HttpServletRequest servletRequest) throws IOException, URISyntaxException {
+        Request request = new Request();
+        request.setContextPath(servletRequest.getContextPath());
+        request.setMethod(servletRequest.getMethod());
+        Map<String, List<String>> headers = Header.filter(parseHeaders(servletRequest), HeaderType.END_TO_END);
         if (headers.get(Header.HOST.getName()) != null) {
             Host host = Host.extractHost(destination.toURI());
             headers.put(
@@ -191,28 +231,28 @@ public class TunnelServlet extends HttpServlet {
                     )
             );
         }
-        builder.headers(headers);
         List<String> forwardedFor = headers.get(Header.X_FORWARDED_FOR.getName());
         if (forwardedFor == null) {
             forwardedFor = new LinkedList<String>();
         }
-        forwardedFor.add(request.getRemoteAddr());
+        forwardedFor.add(servletRequest.getRemoteAddr());
         headers.put(Header.X_FORWARDED_FOR.getName(), forwardedFor);
+        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+            request.addHeader(header.getKey(), header.getValue());
+        }
 
-        if(request.getCookies() != null) {
-            Map<String, String> cookies = new HashMap<String, String>(request.getCookies().length);
-            for (Cookie cookie : request.getCookies()) {
-                cookies.put(cookie.getName(), cookie.getValue());
+        if (servletRequest.getCookies() != null) {
+            for (Cookie cookie : servletRequest.getCookies()) {
+                request.addCookie(cookie);
             }
-            builder.cookies(cookies);
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream(
-                request.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : request.getContentLength()
+                servletRequest.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : servletRequest.getContentLength()
         );
-        IOUtils.copy(request.getInputStream(), baos);
-        builder.data(baos.toByteArray());
-        return builder.build();
+        IOUtils.copy(servletRequest.getInputStream(), baos);
+        request.setData(baos.toByteArray());
+        return request;
     }
 
     protected Map<String, List<String>> parseHeaders(HttpServletRequest request) {
@@ -254,6 +294,19 @@ public class TunnelServlet extends HttpServlet {
             }
         }
         return outBuf != null ? outBuf : in;
+    }
+
+    protected Cookie parseCookie(String cookie) {
+        List<String> cookieParts = Arrays.asList(cookie.split(";"));
+        String[] nameAndValue = cookieParts.get(0).split("=");
+        Cookie realCookie = new Cookie(nameAndValue[0].trim(), nameAndValue[1].trim());
+        for (int i = 1; i < cookieParts.size(); i++) {
+            String part = cookieParts.get(i);
+            if(part.startsWith("Path=")) {
+                realCookie.setPath(part.trim().replace("Path=", ""));
+            }
+        }
+        return realCookie;
     }
 
     protected HttpServletRequest wrapRequest(HttpServletRequest request) {

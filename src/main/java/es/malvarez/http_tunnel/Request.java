@@ -1,8 +1,7 @@
 package es.malvarez.http_tunnel;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import javax.servlet.http.Cookie;
+import java.util.*;
 
 /**
  * http_tunnel
@@ -11,68 +10,57 @@ import java.util.Map;
  */
 public class Request {
 
-    private final String method;
-    private final Map<String, List<String>> headers;
-    private final Map<String, String> cookies;
-    private final byte[] data;
+    private String contextPath;
+    private String method;
+    private Map<String, List<String>> headers = new HashMap<String, List<String>>();
+    private Map<String, Cookie> cookies = new HashMap<String, Cookie>();
+    private byte[] data;
 
-    private Request(String method, Map<String, List<String>> headers, Map<String, String> cookies, byte[] data) {
-        this.method = method;
-        this.headers = Collections.unmodifiableMap(headers);
-        this.cookies = Collections.unmodifiableMap(cookies);
-        this.data = data;
+    public String getContextPath() {
+        return contextPath;
+    }
+
+    public void setContextPath(String contextPath) {
+        this.contextPath = contextPath;
     }
 
     public String getMethod() {
         return method;
     }
 
+    public void setMethod(String method) {
+        this.method = method;
+    }
+
+    public void addHeader(String header, List<String> value) {
+        this.headers.put(header, value);
+    }
+
     public Map<String, List<String>> getHeaders() {
         return headers;
     }
 
-    public Map<String, String> getCookies() {
+    public List<String> removeHeader(String header) {
+        return this.headers.remove(header);
+    }
+
+    public void addCookie(Cookie cookie) {
+        this.cookies.put(cookie.getName(), cookie);
+    }
+
+    public Map<String, Cookie> getCookies() {
         return cookies;
+    }
+
+    public Cookie removeCookie(String cookie) {
+        return this.cookies.remove(cookie);
     }
 
     public byte[] getData() {
         return data;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public void setData(byte[] data) {
+        this.data = data;
     }
-
-    public static class Builder {
-        private String method = Method.GET.getName();
-        private Map<String, List<String>> headers = Collections.emptyMap();
-        private Map<String, String> cookies = Collections.emptyMap();
-        private byte[] data = new byte[0];
-
-        public Builder method(String method) {
-            this.method = method;
-            return this;
-        }
-
-        public Builder headers(Map<String, List<String>> headers) {
-            this.headers = headers;
-            return this;
-        }
-
-        public Builder cookies(Map<String, String> cookies) {
-            this.cookies = cookies;
-            return this;
-        }
-
-        public Builder data(byte[] data) {
-            this.data = data;
-            return this;
-        }
-
-        public Request build() {
-            return new Request(method, headers, cookies, data);
-        }
-    }
-
-
 }
