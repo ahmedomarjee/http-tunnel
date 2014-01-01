@@ -29,6 +29,7 @@ public class TunnelServlet extends HttpServlet {
     protected static final BitSet ASCII_QUERY_CHARS;
     protected static final String SET_COOKIE_HEADER = "Set-Cookie";
     protected static final String FORWARDED_COOKIE_PREFIX = "X-Forwarded-Cookie-";
+    protected static final String _METHOD_PARAM = "_method";
 
     static {
         char[] c_unreserved = "_-!.~'()*".toCharArray();
@@ -111,7 +112,7 @@ public class TunnelServlet extends HttpServlet {
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
             Header header = Header.forName(headerEntry.getKey());
-            if(header != Header.LOCATION) {
+            if (header != Header.LOCATION) {
                 servletResponse.addHeader(headerEntry.getKey(), Header.toString(headerEntry.getValue()));
             }
         }
@@ -252,6 +253,9 @@ public class TunnelServlet extends HttpServlet {
         );
         IOUtils.copy(servletRequest.getInputStream(), baos);
         request.setData(baos.toByteArray());
+        if (servletRequest.getParameter(_METHOD_PARAM) != null) {
+            request.setMethod(servletRequest.getParameter(_METHOD_PARAM));
+        }
         return request;
     }
 
@@ -302,7 +306,7 @@ public class TunnelServlet extends HttpServlet {
         Cookie realCookie = new Cookie(nameAndValue[0].trim(), nameAndValue[1].trim());
         for (int i = 1; i < cookieParts.size(); i++) {
             String part = cookieParts.get(i);
-            if(part.startsWith("Path=")) {
+            if (part.startsWith("Path=")) {
                 realCookie.setPath(part.trim().replace("Path=", ""));
             }
         }
