@@ -31,11 +31,15 @@ public class NetTunnelResponse implements TunnelResponse {
                     response.addHeader(entry.getKey(), entry.getValue());
                 }
             }
-            ByteArrayOutputStream baos = new ByteArrayOutputStream(
-                    connection.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : connection.getContentLength()
-            );
-            IOUtils.copy(connection.getInputStream(), baos);
-            response.setData(baos.toByteArray());
+            try {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream(
+                        connection.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : connection.getContentLength()
+                );
+                IOUtils.copy(connection.getInputStream(), baos);
+                response.setData(baos.toByteArray());
+            } catch (IOException e) {
+                response.setData(new byte[0]);
+            }
         } finally {
             connection.disconnect();
         }

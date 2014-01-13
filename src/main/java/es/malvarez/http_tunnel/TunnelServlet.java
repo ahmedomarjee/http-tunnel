@@ -81,7 +81,12 @@ public class TunnelServlet extends HttpServlet {
         filterRequestCustomCookies(request);
         this.tunnelFactory.buildRequest().execute(request, url).parse(response);
         filterResponseCustomCookies(request, response);
+        if (response.getStatusCode() == HttpServletResponse.SC_FORBIDDEN) {
+            request.getHeaders().remove("JSESSIONID");
+        }
         if (response.getStatusCode() >= HttpServletResponse.SC_MULTIPLE_CHOICES && response.getStatusCode() < HttpServletResponse.SC_NOT_MODIFIED) {
+            handleRedirect(request, response, servletResponse);
+        } else if (response.getHeaders().get(Header.LOCATION.getName()) != null) {
             handleRedirect(request, response, servletResponse);
         } else {
             handleResponse(response, servletResponse);
