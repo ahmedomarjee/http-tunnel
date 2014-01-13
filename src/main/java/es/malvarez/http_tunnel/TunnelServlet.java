@@ -26,6 +26,7 @@ public class TunnelServlet extends HttpServlet {
 
     protected static final String URL_SEPARATOR = "/";
     protected static final String DESTINATION_PARAM = "destination";
+    protected static final String DESTINATION_ON_FORBIDDEN_PARAM = "onForbidden";
     protected static final BitSet ASCII_QUERY_CHARS;
     protected static final String SET_COOKIE_HEADER = "Set-Cookie";
     protected static final String FORWARDED_COOKIE_PREFIX = "X-Forwarded-Cookie-";
@@ -52,6 +53,7 @@ public class TunnelServlet extends HttpServlet {
     protected TunnelFactory tunnelFactory;
 
     protected URL destination;
+    protected URL destinationOnForbidden;
 
     protected Map<String, List<String>> defaultHeaders;
 
@@ -61,6 +63,7 @@ public class TunnelServlet extends HttpServlet {
         this.servletContext = config.getServletContext();
         this.tunnelFactory = buildTransportFactory(config);
         this.destination = buildTunnelDestination(config);
+        this.destinationOnForbidden = buildTunnelDestinationOnForbidden(config);
         this.defaultHeaders = buildDefaultHeaders(config);
         this.internalInit(config);
     }
@@ -81,13 +84,10 @@ public class TunnelServlet extends HttpServlet {
         filterRequestCustomCookies(request);
         this.tunnelFactory.buildRequest().execute(request, url).parse(response);
         filterResponseCustomCookies(request, response);
-        if (response.getStatusCode() == HttpServletResponse.SC_FORBIDDEN) {
-            request.getHeaders().remove("JSESSIONID");
-        }
         if (response.getStatusCode() >= HttpServletResponse.SC_MULTIPLE_CHOICES && response.getStatusCode() < HttpServletResponse.SC_NOT_MODIFIED) {
             handleRedirect(request, response, servletResponse);
-        } else if (response.getHeaders().get(Header.LOCATION.getName()) != null) {
-            handleRedirect(request, response, servletResponse);
+        } else if (response.getStatusCode() == HttpServletResponse.SC_FORBIDDEN) {
+            handleRedirect(destinationOnForbidden.toExternalForm(), request, response, servletResponse);
         } else {
             handleResponse(response, servletResponse);
         }
@@ -99,6 +99,10 @@ public class TunnelServlet extends HttpServlet {
             throw new IllegalArgumentException(String.format("Response code %s without Location header", response.getStatusCode()));
         }
         String location = locations.get(0);
+        handleRedirect(location, request, response, servletResponse);
+    }
+
+    protected void handleRedirect(String location, Request request, Response response, HttpServletResponse servletResponse) throws IOException {
         if (location.startsWith(destination.toExternalForm())) {
             // Mutate the request to a GET after the POST
             request.setMethod(Method.GET.getName());
@@ -163,6 +167,24 @@ public class TunnelServlet extends HttpServlet {
     @SuppressWarnings("UnusedParameters")
     protected TunnelFactory buildTransportFactory(ServletConfig config) throws ServletException {
         return new NetTunnelFactory();
+    }
+
+    /**
+     * Builds the tunnel configuration to use in the servlet
+     *
+     * @param config servlet configuration
+     * @return tunnel configuration.
+     */
+    protected URL buildTunnelDestinationOnForbidden(ServletConfig config) throws ServletException {
+        String destinationUrl = config.getInitParameter(DESTINATION_ON_FORBIDDEN_PARAM);
+        if (destinationUrl == null || destinationUrl.isEmpty()) {
+            throw new ServletException(String.format("Parameter %s is not defined", DESTINATION_ON_FORBIDDEN_PARAM));
+        }
+        try {
+            return new URL(destinationUrl);
+        } catch (MalformedURLException e) {
+            throw new ServletException(e);
+        }
     }
 
     /**
@@ -333,6 +355,10 @@ public class TunnelServlet extends HttpServlet {
 
     public URL getDestination() {
         return destination;
+    }
+
+    public URL getDestinationOnForbidden() {
+        return destinationOnForbidden;
     }
 
     public TunnelFactory getTunnelFactory() {

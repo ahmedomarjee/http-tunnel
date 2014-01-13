@@ -22,6 +22,7 @@ public class TunnelServletTest {
     public void testCorrectInit() throws ServletException {
         ServletConfig config = mock(ServletConfig.class);
         when(config.getInitParameter(TunnelServlet.DESTINATION_PARAM)).thenReturn("http://www.google.es");
+        when(config.getInitParameter(TunnelServlet.DESTINATION_ON_FORBIDDEN_PARAM)).thenReturn("http://www.google.es");
 
         TunnelServlet servlet = new TunnelServlet();
         servlet.init(config);
@@ -33,6 +34,7 @@ public class TunnelServletTest {
     public void testInitWithoutDestination() throws ServletException {
         ServletConfig config = mock(ServletConfig.class);
         when(config.getInitParameter(TunnelServlet.DESTINATION_PARAM)).thenReturn(null);
+        when(config.getInitParameter(TunnelServlet.DESTINATION_ON_FORBIDDEN_PARAM)).thenReturn(null);
 
         TunnelServlet servlet = new TunnelServlet();
         servlet.init(config);
@@ -44,6 +46,7 @@ public class TunnelServletTest {
     public void testInitWithWrongDestination() throws ServletException {
         ServletConfig config = mock(ServletConfig.class);
         when(config.getInitParameter(TunnelServlet.DESTINATION_PARAM)).thenReturn("abc");
+        when(config.getInitParameter(TunnelServlet.DESTINATION_ON_FORBIDDEN_PARAM)).thenReturn("abc");
 
         TunnelServlet servlet = new TunnelServlet();
         servlet.init(config);
