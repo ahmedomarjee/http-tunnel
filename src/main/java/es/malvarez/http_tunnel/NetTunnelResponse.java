@@ -37,7 +37,7 @@ public class NetTunnelResponse implements TunnelResponse {
                 response.setData(new FileInputStream(file));
                 response.setDataLength(file.length());
             } catch (IOException e) {
-                response.setData(null);
+                response.setData(new ByteArrayInputStream(new byte[0]));
                 response.setDataLength(0L);
             }
         } finally {

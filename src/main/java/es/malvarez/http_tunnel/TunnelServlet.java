@@ -108,7 +108,7 @@ public class TunnelServlet extends HttpServlet {
         if (location.startsWith(destination.toExternalForm())) {
             // Mutate the request to a GET after the POST
             request.setMethod(Method.GET.getName());
-            request.setData(null);
+            request.setData(new ByteArrayInputStream(new byte[0]));
             request.removeHeader(Header.CONTENT_LENGTH.getName());
             request.removeHeader(Header.TRANSFER_ENCODING.getName());
             service(new URL(location), request, response, servletResponse);
@@ -118,7 +118,7 @@ public class TunnelServlet extends HttpServlet {
     }
 
     @SuppressWarnings("deprecation")
-    protected void handleResponse(Response response, final HttpServletResponse servletResponse) throws IOException {
+    protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
             Header header = Header.forName(headerEntry.getKey());
@@ -129,16 +129,8 @@ public class TunnelServlet extends HttpServlet {
         for (Cookie cookieEntry : response.getCookies().values()) {
             servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
         }
-        if (response.getDataLength() > 0) {
-            servletResponse.setHeader(Header.TRANSFER_ENCODING.getName(), "chunked");
-            servletResponse.setBufferSize(IOUtils.DEFAULT_BUFFER_SIZE);
-            IOUtils.copy(response.getData(), servletResponse.getOutputStream(), new IOUtils.CopyAdapter() {
-                @Override
-                public void onChunk(int bytesReaded) throws IOException {
-                    servletResponse.flushBuffer();
-                }
-            });
-        }
+        servletResponse.setBufferSize(IOUtils.DEFAULT_BUFFER_SIZE);
+        IOUtils.copy(response.getData(), servletResponse.getOutputStream());
     }
 
     protected void filterRequestCustomCookies(Request request) throws IOException {
@@ -186,12 +178,12 @@ public class TunnelServlet extends HttpServlet {
      * @return tunnel configuration.
      */
     protected URL buildTunnelDestinationOnForbidden(ServletConfig config) throws ServletException {
-        String destinationUrl = config.getInitParameter(DESTINATION_ON_FORBIDDEN_PARAM);
-        if (destinationUrl == null || destinationUrl.isEmpty()) {
+        String onForbidden = config.getInitParameter(DESTINATION_ON_FORBIDDEN_PARAM);
+        if (onForbidden == null || onForbidden.isEmpty()) {
             throw new ServletException(String.format("Parameter %s is not defined", DESTINATION_ON_FORBIDDEN_PARAM));
         }
         try {
-            return new URL(destinationUrl);
+            return new URL(onForbidden);
         } catch (MalformedURLException e) {
             throw new ServletException(e);
         }
