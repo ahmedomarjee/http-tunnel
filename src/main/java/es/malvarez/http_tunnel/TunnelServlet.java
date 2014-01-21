@@ -108,7 +108,8 @@ public class TunnelServlet extends HttpServlet {
         if (location.startsWith(destination.toExternalForm())) {
             // Mutate the request to a GET after the POST
             request.setMethod(Method.GET.getName());
-            request.setData(new ByteArrayInputStream(new byte[0]));
+            response.setDataLength(0L);
+            request.setData(null);
             request.removeHeader(Header.CONTENT_LENGTH.getName());
             request.removeHeader(Header.TRANSFER_ENCODING.getName());
             service(new URL(location), request, response, servletResponse);
@@ -119,6 +120,8 @@ public class TunnelServlet extends HttpServlet {
 
     @SuppressWarnings("deprecation")
     protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
+        response.removeHeader(Header.CONTENT_LENGTH.getName());
+        response.addHeader(Header.TRANSFER_ENCODING.getName(), Arrays.asList("chunked"));
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
             Header header = Header.forName(headerEntry.getKey());
@@ -130,7 +133,19 @@ public class TunnelServlet extends HttpServlet {
             servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
         }
         servletResponse.setBufferSize(IOUtils.DEFAULT_BUFFER_SIZE);
-        IOUtils.copy(response.getData(), servletResponse.getOutputStream());
+        IOUtils.copy(response.getData(), servletResponse.getOutputStream(), new IOUtils.CopyAdapter() {
+
+            @Override
+            public void onChunk(InputStream input, OutputStream output, int bytesReaded) throws IOException {
+                output.flush();
+            }
+
+            @Override
+            public void after(InputStream input, OutputStream output, int total) throws IOException {
+                IOUtils.safelyClose(input);
+            }
+        });
+        servletResponse.flushBuffer();
     }
 
     protected void filterRequestCustomCookies(Request request) throws IOException {

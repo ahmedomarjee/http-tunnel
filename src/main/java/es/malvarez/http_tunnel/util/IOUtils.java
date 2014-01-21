@@ -36,33 +36,34 @@ public class IOUtils {
     }
 
     public static int copy(InputStream input, OutputStream output, CopyAdapter adapter, int bufferSize) throws IOException {
-        adapter.before();
+        adapter.before(input, output);
         int totalRead = 0, bytesRead;
         try {
             byte[] buffer = new byte[bufferSize];
             while ((bytesRead = input.read(buffer)) != -1) {
                 totalRead += bytesRead;
                 output.write(buffer, 0, bytesRead);
-                adapter.onChunk(bytesRead);
+                adapter.onChunk(input, output, bytesRead);
             }
             output.flush();
             return totalRead;
         } finally {
-            adapter.after(totalRead);
-            safelyClose(input);
-            safelyClose(output);
+            adapter.after(input, output, totalRead);
+
         }
     }
 
     public static class CopyAdapter {
 
-        public void before() throws IOException {
+        public void before(InputStream input, OutputStream output) throws IOException {
         }
 
-        public void onChunk(int bytesReaded) throws IOException {
+        public void onChunk(InputStream input, OutputStream output, int bytesReaded) throws IOException {
         }
 
-        public void after(int totalReaded) throws IOException {
+        public void after(InputStream input, OutputStream output, int total) throws IOException {
+            safelyClose(input);
+            safelyClose(output);
         }
     }
 }
