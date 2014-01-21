@@ -78,6 +78,7 @@ public class NetTunnelRequest implements TunnelRequest {
 
     protected void setOutputData(InputStream data, HttpURLConnection connection) throws IOException {
         connection.setDoOutput(true);
+        connection.setChunkedStreamingMode(IOUtils.DEFAULT_BUFFER_SIZE);
         IOUtils.copy(data, connection.getOutputStream());
     }
 

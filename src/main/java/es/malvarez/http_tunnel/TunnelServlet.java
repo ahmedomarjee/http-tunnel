@@ -118,8 +118,7 @@ public class TunnelServlet extends HttpServlet {
     }
 
     @SuppressWarnings("deprecation")
-    protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
-        response.addHeader(Header.CONTENT_LENGTH.getName(), Arrays.asList(Long.toString(response.getDataLength())));
+    protected void handleResponse(Response response, final HttpServletResponse servletResponse) throws IOException {
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
             Header header = Header.forName(headerEntry.getKey());
@@ -130,7 +129,16 @@ public class TunnelServlet extends HttpServlet {
         for (Cookie cookieEntry : response.getCookies().values()) {
             servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
         }
-        IOUtils.copy(response.getData(), servletResponse.getOutputStream());
+        if (response.getDataLength() > 0) {
+            servletResponse.setHeader(Header.TRANSFER_ENCODING.getName(), "chunked");
+            servletResponse.setBufferSize(IOUtils.DEFAULT_BUFFER_SIZE);
+            IOUtils.copy(response.getData(), servletResponse.getOutputStream(), new IOUtils.CopyAdapter() {
+                @Override
+                public void onChunk(int bytesReaded) throws IOException {
+                    servletResponse.flushBuffer();
+                }
+            });
+        }
     }
 
     protected void filterRequestCustomCookies(Request request) throws IOException {
