@@ -1,6 +1,7 @@
 package es.malvarez.http_tunnel;
 
 import javax.servlet.http.Cookie;
+import java.io.InputStream;
 import java.util.*;
 
 /**
@@ -14,7 +15,8 @@ public class Request {
     private String method;
     private Map<String, List<String>> headers = new HashMap<String, List<String>>();
     private Map<String, Cookie> cookies = new HashMap<String, Cookie>();
-    private byte[] data;
+    private InputStream data;
+    private Long dataLength;
 
     public String getContextPath() {
         return contextPath;
@@ -56,11 +58,19 @@ public class Request {
         return this.cookies.remove(cookie);
     }
 
-    public byte[] getData() {
+    public InputStream getData() {
         return data;
     }
 
-    public void setData(byte[] data) {
+    public void setData(InputStream data) {
         this.data = data;
+    }
+
+    public Long getDataLength() {
+        return dataLength;
+    }
+
+    public void setDataLength(Long dataLength) {
+        this.dataLength = dataLength;
     }
 }

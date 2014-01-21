@@ -5,8 +5,8 @@ import es.malvarez.http_tunnel.util.IOUtils;
 
 import javax.net.ssl.*;
 import javax.servlet.http.Cookie;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
@@ -76,9 +76,9 @@ public class NetTunnelRequest implements TunnelRequest {
         return connection;
     }
 
-    protected void setOutputData(byte[] data, HttpURLConnection connection) throws IOException {
+    protected void setOutputData(InputStream data, HttpURLConnection connection) throws IOException {
         connection.setDoOutput(true);
-        IOUtils.copy(new ByteArrayInputStream(data), connection.getOutputStream());
+        IOUtils.copy(data, connection.getOutputStream());
     }
 
     protected static class TrustAllTrustManager implements X509TrustManager {

@@ -2,6 +2,7 @@ package es.malvarez.http_tunnel;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +19,8 @@ public class Response {
     private String statusMessage;
     private Map<String, List<String>> headers = new HashMap<String, List<String>>();
     private Map<String, Cookie> cookies = new HashMap<String, Cookie>();
-    private byte[] data;
+    private InputStream data;
+    private Long dataLength;
 
     public int getStatusCode() {
         return statusCode;
@@ -60,11 +62,19 @@ public class Response {
         return this.cookies.remove(cookie);
     }
 
-    public byte[] getData() {
+    public InputStream getData() {
         return data;
     }
 
-    public void setData(byte[] data) {
+    public void setData(InputStream data) {
         this.data = data;
+    }
+
+    public Long getDataLength() {
+        return dataLength;
+    }
+
+    public void setDataLength(Long dataLength) {
+        this.dataLength = dataLength;
     }
 }

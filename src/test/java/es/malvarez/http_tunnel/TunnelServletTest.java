@@ -46,7 +46,7 @@ public class TunnelServletTest {
     public void testInitWithWrongDestination() throws ServletException {
         ServletConfig config = mock(ServletConfig.class);
         when(config.getInitParameter(TunnelServlet.DESTINATION_PARAM)).thenReturn("abc");
-        when(config.getInitParameter(TunnelServlet.DESTINATION_ON_FORBIDDEN_PARAM)).thenReturn("abc");
+        when(config.getInitParameter(TunnelServlet.DESTINATION_ON_FORBIDDEN_PARAM)).thenReturn("abc ");
 
         TunnelServlet servlet = new TunnelServlet();
         servlet.init(config);

@@ -1,5 +1,6 @@
 package es.malvarez.http_tunnel;
 
+import es.malvarez.http_tunnel.util.FileUtils;
 import es.malvarez.http_tunnel.util.IOUtils;
 
 import javax.servlet.ServletConfig;
@@ -9,9 +10,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -70,6 +69,7 @@ public class TunnelServlet extends HttpServlet {
 
     @Override
     protected void service(HttpServletRequest servletRequest, HttpServletResponse servletResponse) throws ServletException, IOException {
+        FileUtils.init();
         try {
             Request request = parseRequest(wrapRequest(servletRequest));
             Response response = new Response();
@@ -77,6 +77,8 @@ public class TunnelServlet extends HttpServlet {
         } catch (Throwable e) {
             servletContext.log("Error tunneling response", e);
             servletResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Internal server error tunneling the request");
+        } finally {
+            FileUtils.destroy();
         }
     }
 
@@ -117,7 +119,7 @@ public class TunnelServlet extends HttpServlet {
 
     @SuppressWarnings("deprecation")
     protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
-        response.addHeader(Header.CONTENT_LENGTH.getName(), Arrays.asList(Integer.toString(response.getData().length)));
+        response.addHeader(Header.CONTENT_LENGTH.getName(), Arrays.asList(Long.toString(response.getDataLength())));
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
         for (Map.Entry<String, List<String>> headerEntry : Header.filter(response.getHeaders(), HeaderType.END_TO_END).entrySet()) {
             Header header = Header.forName(headerEntry.getKey());
@@ -128,7 +130,7 @@ public class TunnelServlet extends HttpServlet {
         for (Cookie cookieEntry : response.getCookies().values()) {
             servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
         }
-        IOUtils.copy(new ByteArrayInputStream(response.getData()), servletResponse.getOutputStream());
+        IOUtils.copy(response.getData(), servletResponse.getOutputStream());
     }
 
     protected void filterRequestCustomCookies(Request request) throws IOException {
@@ -275,11 +277,10 @@ public class TunnelServlet extends HttpServlet {
             }
         }
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream(
-                servletRequest.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : servletRequest.getContentLength()
-        );
-        IOUtils.copy(servletRequest.getInputStream(), baos);
-        request.setData(baos.toByteArray());
+        File file = FileUtils.createTempFile("request");
+        IOUtils.copy(servletRequest.getInputStream(), new FileOutputStream(file));
+        request.setData(new FileInputStream(file));
+        request.setDataLength(file.length());
         if (servletRequest.getParameter(_METHOD_PARAM) != null) {
             request.setMethod(servletRequest.getParameter(_METHOD_PARAM));
         }

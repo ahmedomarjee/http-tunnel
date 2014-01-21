@@ -1,9 +1,9 @@
 package es.malvarez.http_tunnel;
 
+import es.malvarez.http_tunnel.util.FileUtils;
 import es.malvarez.http_tunnel.util.IOUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.util.List;
 import java.util.Map;
@@ -32,13 +32,13 @@ public class NetTunnelResponse implements TunnelResponse {
                 }
             }
             try {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream(
-                        connection.getContentLength() <= 0 ? IOUtils.DEFAULT_BUFFER_SIZE : connection.getContentLength()
-                );
-                IOUtils.copy(connection.getInputStream(), baos);
-                response.setData(baos.toByteArray());
+                File file = FileUtils.createTempFile("response");
+                IOUtils.copy(connection.getInputStream(), new FileOutputStream(file));
+                response.setData(new FileInputStream(file));
+                response.setDataLength(file.length());
             } catch (IOException e) {
-                response.setData(new byte[0]);
+                response.setData(null);
+                response.setDataLength(0L);
             }
         } finally {
             connection.disconnect();
