@@ -15,6 +15,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * http_tunnel
@@ -25,7 +26,8 @@ public class TunnelServlet extends HttpServlet {
 
     protected static final String URL_SEPARATOR = "/";
     protected static final String DESTINATION_PARAM = "destination";
-    protected static final String DESTINATION_ON_FORBIDDEN_PARAM = "onForbidden";
+    protected static final String LOGIN_PARAM = "loginUrl";
+    protected static final String LOGOUT_PARAM = "logoutUrl";
     protected static final BitSet ASCII_QUERY_CHARS;
     protected static final String SET_COOKIE_HEADER = "Set-Cookie";
     protected static final String FORWARDED_COOKIE_PREFIX = "X-Forwarded-Cookie-";
@@ -52,7 +54,8 @@ public class TunnelServlet extends HttpServlet {
     protected TunnelFactory tunnelFactory;
 
     protected URL destination;
-    protected URL destinationOnForbidden;
+    protected URL loginUrl;
+    protected Pattern logoutUrl;
 
     protected Map<String, List<String>> defaultHeaders;
 
@@ -62,7 +65,8 @@ public class TunnelServlet extends HttpServlet {
         this.servletContext = config.getServletContext();
         this.tunnelFactory = buildTransportFactory(config);
         this.destination = buildTunnelDestination(config);
-        this.destinationOnForbidden = buildTunnelDestinationOnForbidden(config);
+        this.loginUrl = buildLoginUrl(config);
+        this.logoutUrl = buildLogoutUrl(config);
         this.defaultHeaders = buildDefaultHeaders(config);
         this.internalInit(config);
     }
@@ -89,9 +93,9 @@ public class TunnelServlet extends HttpServlet {
         if (response.getStatusCode() >= HttpServletResponse.SC_MULTIPLE_CHOICES && response.getStatusCode() < HttpServletResponse.SC_NOT_MODIFIED) {
             handleRedirect(request, response, servletResponse);
         } else if (response.getStatusCode() == HttpServletResponse.SC_FORBIDDEN) {
-            handleRedirect(destinationOnForbidden.toExternalForm(), request, response, servletResponse);
+            handleRedirect(loginUrl.toExternalForm(), request, response, servletResponse);
         } else {
-            handleResponse(response, servletResponse);
+            handleResponse(request, response, servletResponse);
         }
     }
 
@@ -108,7 +112,6 @@ public class TunnelServlet extends HttpServlet {
         if (location.startsWith(destination.toExternalForm())) {
             // Mutate the request to a GET after the POST
             request.setMethod(Method.GET.getName());
-            response.setDataLength(0L);
             request.setData(null);
             request.removeHeader(Header.CONTENT_LENGTH.getName());
             request.removeHeader(Header.TRANSFER_ENCODING.getName());
@@ -119,7 +122,7 @@ public class TunnelServlet extends HttpServlet {
     }
 
     @SuppressWarnings("deprecation")
-    protected void handleResponse(Response response, HttpServletResponse servletResponse) throws IOException {
+    protected void handleResponse(Request request, Response response, HttpServletResponse servletResponse) throws IOException {
         response.removeHeader(Header.CONTENT_LENGTH.getName());
         response.addHeader(Header.TRANSFER_ENCODING.getName(), Arrays.asList("chunked"));
         servletResponse.setStatus(response.getStatusCode(), response.getStatusMessage());
@@ -129,11 +132,21 @@ public class TunnelServlet extends HttpServlet {
                 servletResponse.addHeader(headerEntry.getKey(), Header.toString(headerEntry.getValue()));
             }
         }
-        for (Cookie cookieEntry : response.getCookies().values()) {
-            servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
+
+        if (!request.isLogout()) {
+            for (Cookie cookieEntry : response.getCookies().values()) {
+                servletResponse.addCookie(new Cookie(cookieEntry.getName(), cookieEntry.getValue()));
+            }
+        } else {
+            for (Cookie cookieEntry : response.getCookies().values()) {
+                Cookie removedCookie = new Cookie(cookieEntry.getName(), null);
+                removedCookie.setMaxAge(0);
+                servletResponse.addCookie(removedCookie);
+            }
         }
+
         servletResponse.setBufferSize(IOUtils.DEFAULT_BUFFER_SIZE);
-        IOUtils.copy(response.getData(), servletResponse.getOutputStream(), new IOUtils.CopyAdapter() {
+        IOUtils.copy(new FileInputStream(response.getData()), servletResponse.getOutputStream(), new IOUtils.CopyAdapter() {
 
             @Override
             public void onChunk(InputStream input, OutputStream output, int bytesReaded) throws IOException {
@@ -192,16 +205,30 @@ public class TunnelServlet extends HttpServlet {
      * @param config servlet configuration
      * @return tunnel configuration.
      */
-    protected URL buildTunnelDestinationOnForbidden(ServletConfig config) throws ServletException {
-        String onForbidden = config.getInitParameter(DESTINATION_ON_FORBIDDEN_PARAM);
-        if (onForbidden == null || onForbidden.isEmpty()) {
-            throw new ServletException(String.format("Parameter %s is not defined", DESTINATION_ON_FORBIDDEN_PARAM));
+    protected URL buildLoginUrl(ServletConfig config) throws ServletException {
+        String loginUrl = config.getInitParameter(LOGIN_PARAM);
+        if (loginUrl == null || loginUrl.isEmpty()) {
+            throw new ServletException(String.format("Parameter %s is not defined", LOGIN_PARAM));
         }
         try {
-            return new URL(onForbidden);
+            return new URL(loginUrl);
         } catch (MalformedURLException e) {
-            throw new ServletException(e);
+            throw new ServletException(String.format("Bad parameter %s : %s", LOGIN_PARAM, loginUrl), e);
         }
+    }
+
+    /**
+     * Builds the tunnel configuration to use in the servlet
+     *
+     * @param config servlet configuration
+     * @return tunnel configuration.
+     */
+    protected Pattern buildLogoutUrl(ServletConfig config) throws ServletException {
+        String logoutUrl = config.getInitParameter(LOGOUT_PARAM);
+        if (logoutUrl == null || logoutUrl.isEmpty()) {
+            throw new ServletException(String.format("Parameter %s is not defined", LOGIN_PARAM));
+        }
+        return Pattern.compile(logoutUrl);
     }
 
     /**
@@ -292,10 +319,20 @@ public class TunnelServlet extends HttpServlet {
             }
         }
 
+        List<String> requestedWithHeader = null;
+        for(String header : request.getHeaders().keySet()) {
+            if("x-requested-with".equalsIgnoreCase(header)) {
+                requestedWithHeader = request.getHeaders().get(header);
+                break;
+            }
+        }
+        request.setAjax(requestedWithHeader != null && !requestedWithHeader.isEmpty() && "XMLHttpRequest".equalsIgnoreCase(requestedWithHeader.get(0)));
+
+        request.setLogout(logoutUrl.matcher(servletRequest.getRequestURI()).matches());
+
         File file = FileUtils.createTempFile("request");
         IOUtils.copy(servletRequest.getInputStream(), new FileOutputStream(file));
-        request.setData(new FileInputStream(file));
-        request.setDataLength(file.length());
+        request.setData(file);
         if (servletRequest.getParameter(_METHOD_PARAM) != null) {
             request.setMethod(servletRequest.getParameter(_METHOD_PARAM));
         }
@@ -373,8 +410,12 @@ public class TunnelServlet extends HttpServlet {
         return destination;
     }
 
-    public URL getDestinationOnForbidden() {
-        return destinationOnForbidden;
+    public URL getLoginUrl() {
+        return loginUrl;
+    }
+
+    public Pattern getLogoutUrl() {
+        return logoutUrl;
     }
 
     public TunnelFactory getTunnelFactory() {

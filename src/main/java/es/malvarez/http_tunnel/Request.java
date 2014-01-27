@@ -1,6 +1,9 @@
 package es.malvarez.http_tunnel;
 
 import javax.servlet.http.Cookie;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.*;
 
@@ -15,8 +18,9 @@ public class Request {
     private String method;
     private Map<String, List<String>> headers = new HashMap<String, List<String>>();
     private Map<String, Cookie> cookies = new HashMap<String, Cookie>();
-    private InputStream data;
-    private Long dataLength;
+    private File data;
+    private boolean ajax;
+    private boolean logout;
 
     public String getContextPath() {
         return contextPath;
@@ -58,19 +62,31 @@ public class Request {
         return this.cookies.remove(cookie);
     }
 
-    public InputStream getData() {
+    public File getData() {
         return data;
     }
 
-    public void setData(InputStream data) {
+    public void setData(File data) {
         this.data = data;
     }
 
     public Long getDataLength() {
-        return dataLength;
+        return data == null ? 0L : data.length();
     }
 
-    public void setDataLength(Long dataLength) {
-        this.dataLength = dataLength;
+    public boolean isAjax() {
+        return ajax;
+    }
+
+    public void setAjax(boolean ajax) {
+        this.ajax = ajax;
+    }
+
+    public boolean isLogout() {
+        return logout;
+    }
+
+    public void setLogout(boolean logout) {
+        this.logout = logout;
     }
 }

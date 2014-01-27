@@ -5,6 +5,8 @@ import es.malvarez.http_tunnel.util.IOUtils;
 
 import javax.net.ssl.*;
 import javax.servlet.http.Cookie;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -76,10 +78,10 @@ public class NetTunnelRequest implements TunnelRequest {
         return connection;
     }
 
-    protected void setOutputData(InputStream data, HttpURLConnection connection) throws IOException {
+    protected void setOutputData(File data, HttpURLConnection connection) throws IOException {
         connection.setDoOutput(true);
         connection.setChunkedStreamingMode(IOUtils.DEFAULT_BUFFER_SIZE);
-        IOUtils.copy(data, connection.getOutputStream());
+        IOUtils.copy(new FileInputStream(data), connection.getOutputStream());
     }
 
     protected static class TrustAllTrustManager implements X509TrustManager {
